@@ -1,6 +1,13 @@
 const db = require('../models');
 const Product = db.Products;
 
+const getPagination = (page, size) => {
+  const limit = size ? +size : 3;
+  const offset = page ? page * limit : 0;
+
+  return { limit, offset };
+};
+
 // Create and Save a new Product
 exports.create = (req, res) => {
   if (!req.body.title || !req.body.description) {
@@ -27,18 +34,19 @@ exports.create = (req, res) => {
 
 // Retrieve all Products from the database.
 exports.findAll = (req, res) => {
-  const title = req.query.title;
+  const { page, size, title } = req.query;
   var condition = title ? { title: { $regex: new RegExp(title), $options: "i" } } : {};
 
-  Product.find(condition)
-    .then(data => {
-      if (!data.length) {
-        res.status(404).send({
-          message: 'No record found'
-        })
-      } else {
-        res.send(data);
-      }
+  const { limit, offset } = getPagination(page, size);
+
+  Product.paginate(condition, { offset, limit })
+    .then((data) => {
+        res.send({
+          totalItems: data.totalDocs,
+          products: data.docs,
+          totalPages: data.totalPages,
+          currentPage: data.page - 1,
+        });
     })
     .catch((error) => {
       res.status(500).send({
@@ -49,15 +57,18 @@ exports.findAll = (req, res) => {
 
 // Find all published Products
 exports.findAllPublished = (req, res) => {
-  Product.find({ published: true })
+  const { page, size } = req.query;
+
+  const { limit, offset } = getPagination(page, size);
+
+  Product.paginate({ published: false }, { offset, limit })
     .then(data => {
-      if (!data.length) {
-        res.status(404).send({
-          message: 'No record found'
-        })
-      } else {
-        res.send(data);
-      }
+      res.send({
+        totalItems: data.totalDocs,
+        products: data.docs,
+        totalPages: data.totalPages,
+        currentPage: data.page - 1,
+      });
     })
     .catch((error) => {
       res.status(500).send({
@@ -81,7 +92,7 @@ exports.findOne = (req, res) => {
       }
     })
     .catch(error => {
-      res.status(500).send({ 
+      res.status(500).send({
         message: `Error retrieving Product with id=${id}`
       });
     });
@@ -91,7 +102,8 @@ exports.findOne = (req, res) => {
 exports.update = (req, res) => {
   if (!req.body) {
     return res.status(400).send({
-       message: 'Data to update can not be empty!' })
+      message: 'Data to update can not be empty!'
+    })
   }
 
   const id = req.params.id;
@@ -118,35 +130,35 @@ exports.delete = (req, res) => {
   const id = req.params.id;
 
   Product.findByIdAndRemove(id)
-  .then(data => {
-    if(!data) {
-      res.status(404).send({
-        message: `Cannot delete Product with id=${id}. Product was not found!`
-      })
-    } else {
-      res.send({ message: 'Product deleted successfully!' })
-    }
-  })
-  .catch(error => {
-    res.status(500).send({
-      message: `Error deleting Product with id=${id}`
+    .then(data => {
+      if (!data) {
+        res.status(404).send({
+          message: `Cannot delete Product with id=${id}. Product was not found!`
+        })
+      } else {
+        res.send({ message: 'Product deleted successfully!' })
+      }
+    })
+    .catch(error => {
+      res.status(500).send({
+        message: `Error deleting Product with id=${id}`
+      });
     });
-  });
 };
 
 // Delete all Products from the database.
 exports.deleteAll = (req, res) => {
 
   Product.deleteMany({})
-  .then(data => {
-    res.send({
-      message: `${data.deletedCount} Products were deleted successfully!`
+    .then(data => {
+      res.send({
+        message: `${data.deletedCount} Products were deleted successfully!`
+      });
+    })
+    .catch(error => {
+      res.status(500).send({
+        message: err.message || 'Something went wrong'
+      });
     });
-  })
-  .catch(error => {
-    res.status(500).send({
-      message: err.message || 'Something went wrong'
-    });
-  });
 };
 
